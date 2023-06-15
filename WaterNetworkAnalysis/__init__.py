@@ -8,6 +8,7 @@ from .WaterNetworkAnalysis import (
     align_trajectory,
     calculate_oxygen_density_map,
     extract_waters_from_trajectory,
+    extract_waters_from_trajectory_around_protein,
     get_center_of_selection,
     get_selection_string_from_resnums,
     make_results_pdb_MDA,
