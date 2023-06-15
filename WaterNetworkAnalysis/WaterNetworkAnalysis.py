@@ -390,6 +390,88 @@ def extract_waters_from_trajectory(
     return Odata, coordsH
 
 
+def extract_waters_from_trajectory_around_protein(
+    trajectory: str,
+    topology: str | None = None,
+    dist: float = 12.0,
+    SOL: str = "SOL",
+    OW: str = "OW",
+    save_file: str | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Extract waters for clustering analysis.
+
+    Calculates water (oxygen and hydrogen) coordinates for all the
+    waters in the aligned trajectory using MDAnalysis for further use in water
+    clustering. The trajectory should be aligned previously.
+
+    Args:
+        selection_center (np.ndarray): coordinates of selection
+            center around which waters will be selected.
+        trajectory (str): Trajectory file name.
+        topology (str | None, optional): Topology file name. Defaults to None.
+        dist (float, optional): Distance around the center of selection
+            inside which water molecules will be sampled. Defaults to 12.0.
+        SOL (str, optional): Residue name for waters. Defaults to "SOL".
+        OW (str, optional): Name of the oxygen atom in water molecules.
+            Defaults to "OW".
+        save_file (str | None, optional): File to which coordinates will
+            be saved. If none doesn't save to a file. Defaults to None.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]:
+            returns xyz numpy arrays that contain coordinates of oxygens,
+            and combined array of hydrogen 1 and hydrogen 2
+
+    Example::
+
+        # Generate water coordinates for clustering analysis
+        resids = [8,12,143,144]
+        coordO, coordH = extract_waters_from_trajectory(
+            get_center_of_selection(get_selection_string_from_resnums(resids)),
+            trajectory = 'trajectory.xtc',
+            topology = 'topology.tpr'
+        )
+    """
+    if topology:
+        u = mda.Universe(topology, trajectory)
+    else:
+        u = mda.Universe(trajectory)
+    coordsH = []
+    coordsO = []
+    waters = u.select_atoms(f'resname {SOL}')
+    if len(waters.bonds) == 0:
+        waters.guess_bonds()
+    # loop over
+    for nn, k in enumerate(u.trajectory):
+        Os = u.select_atoms(
+            "name "
+            + str(OW)
+            + " and resname "
+            + str(SOL)
+            + " and around "
+            + str(dist)
+            + " protein"
+        )
+        for i, j in zip(Os.positions, Os):
+            Hs = j.bonded_atoms
+            if len(Hs) != 2:
+                raise Exception(
+                   f"Water {j} in snapshot {i} has too many hydrogens ({len(Hs)})."
+                )
+            for l in Hs.positions:
+                coordsH.append(l)
+            coordsO.append(i)
+    Odata: np.ndarray = np.asarray(coordsO)
+    coordsH = np.asarray(coordsH)
+    Opos, H1, H2 = get_orientations_from_positions(Odata, coordsH)
+    # SAVEs full XYZ coordinates, not O coordinates and h orientations!!!!!
+    if save_file is not None:
+        np.savetxt(save_file, np.c_[Opos, H1, H2])
+    return Odata, coordsH
+
+
+
+
 def __align_mda(
     unaligned_trj_file: str,
     pdb_to_align_to: str,
